@@ -1,8 +1,15 @@
 import pygame
 import sys
 import random
+# Inicializar Pygame
+pygame.init()
+
+
+pygame.display.set_caption("BoxMan RPG Survival")
+
 # Ruta de la imagen PNG
 image_path = "Background.png"
+
 # Cargar la imagen y obtener su rectángulo
 background_image = pygame.image.load(image_path)
 background_rect = background_image.get_rect()
@@ -10,6 +17,11 @@ background_rect = background_image.get_rect()
 # Definir constantes
 CELL_SIZE = 16
 GRASS_PERCENTAGE = 1
+
+# Contadores globales para celdas y chunks
+CELL_COUNTER = 1
+CHUNK_COUNTER = 1
+
 
 # Colores
 GREEN = (0, 255, 0)
@@ -46,29 +58,60 @@ class Player:
         self.x = x
         self.y = y
         self.start_cell = (16, 16)
-        self.current_cell = None
+        self.current_cell = f"C{x}_{y}"
+        self.current_chunk = 1
 
     def move(self, dx, dy):
         if self.start_cell == (16, 16):  # primer movimiento
-            self.current_cell = (self.start_cell[0] + dx, self.start_cell[1] + dy)
+            self.current_cell = f"C{self.start_cell[0] + dx}_{self.start_cell[1] + dy}"
             self.start_cell = None
         else:  # el resto de los movimientos
-            self.current_cell = (self.current_cell[0] + dx, self.current_cell[1] + dy)
-            print(self.current_cell)
-        update_explored_area(dx, dy)
+            self.current_cell = f"C{int(self.current_cell[1:].split('_')[0]) + dx}_{int(self.current_cell[1:].split('_')[1]) + dy}" 
+            print("player cell ", player.current_cell)      
+            for chunk in chunks:
+                for cell_id, cell_info in chunk.cells.items():
+                    if cell_id == player.current_cell:
+                        print("la celda en la que está el jugador es ", cell_id)
+                        print("El chunk_id correspondiente es ", cell_info.get("chunk_id", "No chunk_id"))
+
+
+
+
+
+
+            update_explored_area(dx, dy)
+
 
 class Chunk:
-    # Contador de chunks para asignar IDs únicos
-    chunk_counter = 1
-
     def __init__(self, start_x, start_y, width, height):
-        self.id = Chunk.chunk_counter
-        Chunk.chunk_counter += 1
+        global CHUNK_COUNTER
+        self.id = CHUNK_COUNTER
+        CHUNK_COUNTER += 1
         self.start_x = start_x
         self.start_y = start_y
         self.width = width
         self.height = height
         self.cells = {}
+
+
+
+# Posición inicial del jugador en celdas (más hacia el centro)
+player = Player(16, 16)
+player.current_cell = player.start_cell
+
+# Configuración de la pantalla
+screen = pygame.display.set_mode(SCREEN_SIZE)
+
+
+# Función para obtener el chunk actual basado en las coordenadas del jugador
+def get_current_chunk(player_x, player_y):
+    for chunk in chunks:
+        if chunk.start_x <= player_x < chunk.start_x + chunk.width and \
+                chunk.start_y <= player_y < chunk.start_y + chunk.height:
+            return chunk
+
+    # Si el jugador no está en ningún chunk existente, puedes manejarlo de la manera que desees
+    return None
 
 def update_explored_area(dx, dy):
     move_terrain(-dx, -dy)
@@ -89,14 +132,19 @@ def move_terrain(dx, dy):
     cell_data.clear()
     cell_data.update(new_cell_data)
 
-def generate_cell(x, y):
+def generate_cell(x, y,chunk_id):
     # Generar información sobre una nueva celda
     cell_id = f"C{x}_{y}"
-    cell_data[cell_id] = {terrain: False for terrain in TERRAIN_TYPES}
 
-    # Determinar el tipo de terreno
-    if random.random() < GRASS_PERCENTAGE:
-        cell_data[cell_id]["Grass"] = True
+    # Verificar si la celda ya existe antes de generarla nuevamente
+    if cell_id not in cell_data:
+        cell_data[cell_id] = {terrain: False for terrain in TERRAIN_TYPES}
+
+        # Determinar el tipo de terreno
+        if random.random() < GRASS_PERCENTAGE:
+            cell_data[cell_id]["Grass"] = True
+        # Agregar el chunk_id a la información de la celda
+        cell_data[cell_id]["chunk_id"] = chunk_id
 
 def generate_chunk(start_x, start_y, width, height):
     # Generar un nuevo chunk
@@ -104,29 +152,46 @@ def generate_chunk(start_x, start_y, width, height):
 
     for x in range(start_x, start_x + width):
         for y in range(start_y, start_y + height):
-            generate_cell(x, y)
-            chunk.cells[f"C{x}_{y}"] = cell_data[f"C{x}_{y}"]
+            generate_cell(x, y, chunk.id)
+
+            # Verificar si la celda ya existe en el chunk antes de agregarla
+            cell_id = f"C{x}_{y}"
+            if cell_id not in chunk.cells:
+                chunk.cells[cell_id] = cell_data[cell_id]
 
     return chunk
 
-def inicializar_juego():
-    # Inicializar Pygame
-    pygame.init()
 
-    # Posición inicial del jugador en celdas (más hacia el centro)
-    player = Player(16, 16)
-
-    # Configuración de la pantalla
-    screen = pygame.display.set_mode(SCREEN_SIZE)
-    pygame.display.set_caption("Juego de Celdas")
-
+def iniciar_juego_desde_pantalla_inicio(player):
     # Generar el primer chunk inicial
     initial_chunk = generate_chunk(INITIAL_CHUNK_X, INITIAL_CHUNK_Y, CHUNK_WIDTH, CHUNK_HEIGHT)
     chunks.append(initial_chunk)
 
-    return player, screen
+    # Definir el chunk actual al primer chunk generado
+    current_chunk = initial_chunk
 
-def bucle_principal(player, screen):
+    # Spawn de los chunks relativos al chunk actual
+    spawn_chunks(INITIAL_CHUNK_X, INITIAL_CHUNK_Y)
+
+    # Iniciar el bucle principal
+    bucle_principal(player, current_chunk)
+
+def spawn_chunks(center_x, center_y):
+    # Instanciar los 8 chunks relativos al chunk actual
+    spawn_relative_chunk(center_x - 8, center_y - 8)  # Noroeste
+    spawn_relative_chunk(center_x, center_y - 8)      # Norte
+    spawn_relative_chunk(center_x + 8, center_y - 8)  # Noreste
+    spawn_relative_chunk(center_x - 8, center_y)      # Oeste
+    spawn_relative_chunk(center_x + 8, center_y)      # Este
+    spawn_relative_chunk(center_x - 8, center_y + 8)  # Suroeste
+    spawn_relative_chunk(center_x, center_y + 8)      # Sur
+    spawn_relative_chunk(center_x + 8, center_y + 8)  # Sureste
+
+def spawn_relative_chunk(center_x, center_y):
+    new_chunk = generate_chunk(center_x, center_y, CHUNK_WIDTH, CHUNK_HEIGHT)
+    chunks.append(new_chunk)
+
+def bucle_principal(player, current_chunk):
     # Bucle principal del juego
     while True:
         for event in pygame.event.get():
@@ -197,11 +262,7 @@ def mostrar_pantalla_inicio(screen):
 
     pygame.display.flip()
 
-
-
-
 def main():
-    player, screen = inicializar_juego()
 
     mostrando_pantalla_inicio = True
     generando_mundo = False
@@ -215,6 +276,7 @@ def main():
                 if event.key == pygame.K_RETURN:  # Tecla Enter
                     mostrando_pantalla_inicio = False
                     generando_mundo = True
+                    iniciar_juego_desde_pantalla_inicio(player)
                 elif event.key == pygame.K_ESCAPE:  # Tecla Escape
                     pygame.quit()
                     sys.exit()
@@ -223,6 +285,7 @@ def main():
             mostrar_pantalla_inicio(screen)
         elif generando_mundo:
             bucle_principal(player, screen)
+
 
 if __name__ == "__main__":
     main()
