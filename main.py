@@ -2,16 +2,57 @@ import pygame
 import sys
 import random
 
+
+
+# Porcentaje de terreno Grass deseado
+grass_percentage = 1
+
+# Reloj para controlar la velocidad de actualización
+clock = pygame.time.Clock()
+FPS = 60
+
+
+# Colores
+green = (0, 255, 0)
+white = (255, 255, 255)
+
+# Diccionario para almacenar información sobre cada tipo de terreno
+terrain_types = ["Grass"]
+
+# Lista para almacenar chunks
+chunks = []
+
+# Diccionario para almacenar información sobre cada celda
+cell_data = {}
+
+# Coordenadas del chunk inicial
+chunk_width = 32  
+chunk_height = 32
+initial_chunk_x = 0  # Por ejemplo, en el centro del mapa
+initial_chunk_y = 0  # Por ejemplo, en el centro del mapa
+
+# Tamaño de la pantalla y la celda
+screen_size = (16 * 32, 16 * 32)  # 32x32 chunks * 16x16 cells per chunk
+cell_size = 16
+
 class Player:
     def __init__(self, x, y, cell_size):
         self.x = x
         self.y = y
         self.cell_size = cell_size
+        self.current_chunk = None  # Mantén un registro del chunk actual del jugador
 
     def move(self, dx, dy, terrain_data):
         new_x = self.x + dx
         new_y = self.y + dy
         new_cell_id = f"C{new_x}_{new_y}"
+
+        # Verificar si ha cambiado de chunk
+        new_chunk_x = new_x // chunk_width
+        new_chunk_y = new_y // chunk_height
+        if self.current_chunk is None or (new_chunk_x, new_chunk_y) != (self.current_chunk.start_x // chunk_width, self.current_chunk.start_y // chunk_height):
+            self.current_chunk = find_chunk_at(new_x, new_y)
+
         update_explored_area(dx, dy)
 
 class Chunk:
@@ -49,8 +90,6 @@ def move_terrain(dx, dy):
     cell_data.clear()
     cell_data.update(new_cell_data)
 
-# Porcentaje de terreno Grass deseado
-grass_percentage = 1
 
 def generate_cell(x, y):
     # Generar información sobre una nueva celda
@@ -72,6 +111,14 @@ def generate_chunk(start_x, start_y, width, height):
 
     return chunk
 
+def find_chunk_at(x, y):
+    # Buscar el chunk que contiene la posición (x, y)
+    for chunk in chunks:
+        if chunk.start_x <= x < chunk.start_x + chunk.width * cell_size and chunk.start_y <= y < chunk.start_y + chunk.height * cell_size:
+            return chunk
+    return None
+
+
 # Función para generar chunks al norte, sur, este, oeste y diagonales del chunk inicial
 def generate_surrounding_chunks(initial_chunk):
     chunks = []
@@ -87,13 +134,10 @@ def generate_surrounding_chunks(initial_chunk):
 
     return chunks
 
-
 # Inicializar Pygame
 pygame.init()
 
-# Tamaño de la pantalla y la celda
-screen_size = (16 * 32, 16 * 32)  # 32x32 chunks * 16x16 cells per chunk
-cell_size = 16
+
 
 # Posición inicial del jugador en celdas (más hacia el centro)
 player = Player(16, 16, cell_size)  # Start at the center of the initial chunk
@@ -102,24 +146,6 @@ player = Player(16, 16, cell_size)  # Start at the center of the initial chunk
 screen = pygame.display.set_mode(screen_size)
 pygame.display.set_caption("Juego de Celdas")
 
-# Colores
-green = (0, 255, 0)
-white = (255, 255, 255)
-
-# Diccionario para almacenar información sobre cada tipo de terreno
-terrain_types = ["Grass"]
-
-# Lista para almacenar chunks
-chunks = []
-
-# Diccionario para almacenar información sobre cada celda
-cell_data = {}
-
-# Coordenadas del chunk inicial
-chunk_width = 32  
-chunk_height = 32
-initial_chunk_x = 0  # Por ejemplo, en el centro del mapa
-initial_chunk_y = 0  # Por ejemplo, en el centro del mapa
 
 # Generar el primer chunk inicial
 initial_chunk = generate_chunk(initial_chunk_x, initial_chunk_y, chunk_width, chunk_height)
@@ -129,9 +155,7 @@ chunks.append(initial_chunk)
 surrounding_chunks = generate_surrounding_chunks(initial_chunk)
 chunks.extend(surrounding_chunks)
 
-# Reloj para controlar la velocidad de actualización
-clock = pygame.time.Clock()
-FPS = 60
+
 
 while True:
     clock.tick(FPS)
@@ -149,6 +173,9 @@ while True:
                 player.move(-1, 0, cell_data)
             elif event.key == pygame.K_d:
                 player.move(1, 0, cell_data)
+    # Mostrar en qué chunk se encuentra el jugador
+    if player.current_chunk:
+        print(f"Player is in chunk ({player.current_chunk.start_x // chunk_width}, {player.current_chunk.start_y // chunk_height})")
 
     # Rellenar la pantalla con el color negro
     screen.fill((0, 0, 0))
