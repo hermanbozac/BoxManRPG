@@ -47,7 +47,7 @@ INITIAL_CHUNK_X = 12
 INITIAL_CHUNK_Y = 12
 
 # Tamaño de la pantalla y la celda
-SCREEN_SIZE = (16 * 32, 16 * 32)  # 32x32 chunks * 16x16 cells per chunk
+SCREEN_SIZE = (512, 512)  # 32x32 chunks * 16x16 cells per chunk
 
 # Reloj para controlar la velocidad de actualización
 clock = pygame.time.Clock()
@@ -159,19 +159,7 @@ def generate_chunk(start_x, start_y, width, height):
     return chunk
 
 
-def iniciar_juego_desde_pantalla_inicio(player):
-    # Generar el primer chunk inicial
-    initial_chunk = generate_chunk(INITIAL_CHUNK_X, INITIAL_CHUNK_Y, CHUNK_WIDTH, CHUNK_HEIGHT)
-    chunks.append(initial_chunk)
 
-    # Definir el chunk actual al primer chunk generado
-    current_chunk = initial_chunk
-
-    # Spawn de los chunks relativos al chunk actual
-    spawn_chunks(INITIAL_CHUNK_X, INITIAL_CHUNK_Y)
-
-    # Iniciar el bucle principal
-    bucle_principal(player, current_chunk)
 
 def spawn_chunks(center_x, center_y):
     # Instanciar los 8 chunks relativos al chunk actual
@@ -187,6 +175,44 @@ def spawn_chunks(center_x, center_y):
 def spawn_relative_chunk(center_x, center_y):
     new_chunk = generate_chunk(center_x, center_y, CHUNK_WIDTH, CHUNK_HEIGHT)
     chunks.append(new_chunk)
+
+
+def generar_anillo_externo(center_x, center_y):
+    return
+    # Generar un anillo externo de 5x5 de nuevos chunks alrededor de las coordenadas proporcionadas
+    for dx in range(-2, 3):
+        for dy in range(-2, 3):
+            if abs(dx) <= 1 and abs(dy) <= 1:
+                continue  # Salta los 9 chunks del medio
+
+            nuevo_x = center_x + dx * CHUNK_WIDTH
+            nuevo_y = center_y + dy * CHUNK_HEIGHT
+
+            # Verificar si el nuevo chunk ya existe antes de generarlo nuevamente
+            chunk_existente = next((chunk for chunk in chunks if chunk.start_x == nuevo_x and chunk.start_y == nuevo_y), None)
+
+            if chunk_existente is None:
+                nuevo_chunk = generate_chunk(nuevo_x, nuevo_y, CHUNK_WIDTH, CHUNK_HEIGHT)
+                chunks.append(nuevo_chunk)
+
+def generar_anillo_n_2(center_x, center_y):
+    return
+    # Generar un anillo N+2 de 7x7 de nuevos chunks alrededor de las coordenadas proporcionadas
+    for dx in range(-3, 4):
+        for dy in range(-3, 4):
+            if abs(dx) <= 2 and abs(dy) <= 2:
+                continue  # Salta los 25 chunks del anillo N de 5x5
+
+            nuevo_x = center_x + dx * CHUNK_WIDTH
+            nuevo_y = center_y + dy * CHUNK_HEIGHT
+
+            # Verificar si el nuevo chunk ya existe antes de generarlo nuevamente
+            chunk_existente = next((chunk for chunk in chunks if chunk.start_x == nuevo_x and chunk.start_y == nuevo_y), None)
+
+            if chunk_existente is None:
+                nuevo_chunk = generate_chunk(nuevo_x, nuevo_y, CHUNK_WIDTH, CHUNK_HEIGHT)
+                chunks.append(nuevo_chunk)
+
 
 def bucle_principal(player, current_chunk):
     # Bucle principal del juego
@@ -223,7 +249,7 @@ def bucle_principal(player, current_chunk):
                 pygame.draw.rect(screen, GREEN, (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
         # Dibujar jugador blanco en su posición actual
-        pygame.draw.rect(screen, WHITE, (player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+        pygame.draw.rect(screen, WHITE, ((player.x - 0.5) * CELL_SIZE, (player.y - 0.5) * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
         pygame.display.flip()
 
@@ -282,6 +308,35 @@ def main():
             mostrar_pantalla_inicio(screen)
         elif generando_mundo:
             bucle_principal(player, screen)
+
+def iniciar_juego_desde_pantalla_inicio(player):
+    # Generar el primer chunk inicial
+    initial_chunk = generate_chunk(INITIAL_CHUNK_X, INITIAL_CHUNK_Y, CHUNK_WIDTH, CHUNK_HEIGHT)
+    chunks.append(initial_chunk)
+
+    # Definir el chunk actual al primer chunk generado
+    current_chunk = initial_chunk
+
+    # Spawn de los chunks relativos al chunk actual
+    spawn_chunks(INITIAL_CHUNK_X, INITIAL_CHUNK_Y)
+
+
+    # Llamada para generar el anillo externo alrededor del chunk inicial
+    generar_anillo_externo(INITIAL_CHUNK_X, INITIAL_CHUNK_Y)
+
+    # Llamada para generar el anillo N+2 alrededor del chunk inicial
+    generar_anillo_n_2(INITIAL_CHUNK_X, INITIAL_CHUNK_Y)
+
+    # Iniciar el bucle principal
+    bucle_principal(player, current_chunk)
+
+
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
