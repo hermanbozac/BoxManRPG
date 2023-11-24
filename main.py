@@ -57,14 +57,12 @@ class Player:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.start_cell = (16, 16)
         self.current_cell = f"C{x}_{y}"
         self.current_chunk = 1
 
     def move(self, dx, dy):
-        if self.start_cell == (16, 16):  # primer movimiento
-            self.current_cell = f"C{self.start_cell[0] + dx}_{self.start_cell[1] + dy}"
-            self.start_cell = None
+        if self.current_cell == (16, 16):  # primer movimiento
+            self.current_cell = f"C{self.current_cell[0] + dx}_{self.current_cell[1] + dy}"
         else:  # el resto de los movimientos
             self.current_cell = f"C{int(self.current_cell[1:].split('_')[0]) + dx}_{int(self.current_cell[1:].split('_')[1]) + dy}" 
             print("player cell ", player.current_cell)      
@@ -97,7 +95,6 @@ class Chunk:
 
 # Posición inicial del jugador en celdas (más hacia el centro)
 player = Player(16, 16)
-player.current_cell = player.start_cell
 
 # Configuración de la pantalla
 screen = pygame.display.set_mode(SCREEN_SIZE)
