@@ -1,199 +1,185 @@
-import math
+import pygame
+import sys
 import random
 
-ROOM_WIDTH, ROOM_HEIGHT = 14, 10
-HORIZONTAL_ROOMS, VERTICAL_ROOMS = 6, 5
-WIDTH, HEIGHT = ROOM_WIDTH*HORIZONTAL_ROOMS, ROOM_HEIGHT*VERTICAL_ROOMS
+class Player:
+    def __init__(self, x, y, cell_size):
+        self.x = x
+        self.y = y
+        self.cell_size = cell_size
+        self.current_chunk = None  # Mantén un registro del chunk actual del jugador
 
-# Rooms have four sides, any of them can be open -> if we take an open side as a 1 and a closed side as a 0 each room type can be defined with 4 bits
-# From most to least significant bit, they'll be assigned to the north, east, south, west walls
-# E.g. 0b1010=10 would correspond to a room type with openings on the north and south
+    def move(self, dx, dy, terrain_data):
+        new_x = self.x + dx
+        new_y = self.y + dy
+        new_cell_id = f"C{new_x}_{new_y}"
 
-TYPE_MASK = 0x0F
+        # Verificar si ha cambiado de chunk
+        new_chunk_x = new_x // chunk_width
+        new_chunk_y = new_y // chunk_height
+        if self.current_chunk is None or (new_chunk_x, new_chunk_y) != (self.current_chunk.start_x // chunk_width, self.current_chunk.start_y // chunk_height):
+            self.current_chunk = find_chunk_at(new_x, new_y)
 
-def repeatStr(char, times):
-    result = ''
-    for i in range(times):
-        result += char
-    return result
+        update_explored_area(dx, dy)
 
-def roomLineStr(type,lineNumber,stairs=False):
-    result = ''
-    if lineNumber==0 or lineNumber==ROOM_HEIGHT-1:
-        result = repeatStr('# ', ROOM_WIDTH)
-        if (lineNumber==0 and type[0]=='1') or (lineNumber==ROOM_HEIGHT-1 and type[2]=='1'):
-            result = result[:math.ceil(ROOM_WIDTH/2)*2]+'· '+result[math.ceil(ROOM_WIDTH/2)*2+2:]
-    else:
-        result = '# '+repeatStr('· ',ROOM_WIDTH-2)+'# '
-        if lineNumber==math.ceil(ROOM_HEIGHT/2):
-            if type[3]=='1':
-                result='· '+result[2:]
-            if type[1]=='1':
-                result=result[:-2]+'· '
-            if stairs:
-                result=result[:math.ceil(ROOM_WIDTH/2)*2]+'X '+result[math.ceil(ROOM_WIDTH/2)*2+2:]
-    return result
-        
+class Chunk:
+    def __init__(self, start_x, start_y, width, height):
+        self.start_x = start_x
+        self.start_y = start_y
+        self.width = width
+        self.height = height
+        self.cells = {}
 
-def roomGridString(grid, start, end):
-    lines = []
-    result = ''
-    for i in range(len(grid)):
-        for j in range(len(grid[0])):
-            for k in range(ROOM_HEIGHT):
-                if k+i*ROOM_HEIGHT>len(lines)-1:
-                    lines.append(roomLineStr(grid[i][j], k, ([j,i]==start or [j,i]==end)))
-                else:
-                    lines[k+i*ROOM_HEIGHT]+=roomLineStr(grid[i][j], k, ([j,i]==start or [j,i]==end))
-        for l in range(i*ROOM_HEIGHT,(i+1)*ROOM_HEIGHT):
-            lines[l]+='\n'
-            result+=lines[l]
-    return result
+def update_explored_area(dx, dy):
+    # Actualizar el área explorada alrededor del jugador
+    for x in range(player.x - 4, player.x + 5):
+        for y in range(player.y - 4, player.y + 5):
+            cell_id = f"C{x}_{y}"
+            if cell_id not in cell_data:
+                generate_cell(x, y)
 
-def deepRandomWalk(previous, start, end, width, height):
-    previous.append(start)
-    goodPath = False
-    if start[0]==end[0] and start[1]==end[1]:
-        return previous, True
-    else:
-        possibleWalk = []
-        if start[0]-1>=0 and [start[0]-1,start[1]] not in previous:
-            possibleWalk.append([start[0]-1,start[1]])
-        if start[0]+1<width and [start[0]+1, start[1]] not in previous:
-            possibleWalk.append([start[0]+1, start[1]])
-        if start[1]-1>=0 and [start[0],start[1]-1] not in previous:
-            possibleWalk.append([start[0],start[1]-1])
-        if start[1]+1<height and [start[0], start[1]+1] not in previous:
-            possibleWalk.append([start[0], start[1]+1])
-        random.shuffle(possibleWalk)
-        for walkChoice in possibleWalk:
-            newPath, goodPath = deepRandomWalk(previous, walkChoice, end, width, height)
-            if goodPath:
-                break
-        if not goodPath:
-            goodPath = False
-            previous.pop()
-        return previous, goodPath
+    # Mover el mapa en la dirección opuesta al movimiento del jugador
+    move_terrain(-dx, -dy)
 
-def replaceChar(str, char, index):
-    str = str[:index]+char+str[index+1:]
-    return str
+def move_terrain(dx, dy):
+    # Crear un nuevo diccionario de datos de celdas
+    new_cell_data = {}
 
-def generatePath(grid, start, end):
-    print("generatePath from {0} to {1}".format(start,end))
-    path, goodPath = deepRandomWalk([], start, end, len(grid[0]), len(grid))
+    for cell_id, cell_info in cell_data.items():
+        x = int(cell_id[1:].split('_')[0]) + dx
+        y = int(cell_id[1:].split('_')[1]) + dy
+        new_cell_id = f"C{x}_{y}"
 
-    for i in range(len(path)-1): #FIX
-        print(grid)
-        if path[i+1][0]==path[i][0]+1: # going east
-            grid[path[i][1]][path[i][0]]=replaceChar(grid[path[i][1]][path[i][0]], '1', 1)
-            grid[path[i+1][1]][path[i+1][0]]=replaceChar(grid[path[i+1][1]][path[i+1][0]], '1', 3)
-        elif path[i+1][0]==path[i][0]-1: # going west
-            grid[path[i][1]][path[i][0]]=replaceChar(grid[path[i][1]][path[i][0]], '1', 3)
-            grid[path[i+1][1]][path[i+1][0]]=replaceChar(grid[path[i+1][1]][path[i+1][0]], '1', 1)
-        elif path[i+1][1]==path[i][1]+1: # going south
-            grid[path[i][1]][path[i][0]]=replaceChar(grid[path[i][1]][path[i][0]], '1', 2)
-            grid[path[i+1][1]][path[i+1][0]]=replaceChar(grid[path[i+1][1]][path[i+1][0]], '1', 0)
-        elif path[i+1][1]==path[i][1]-1: # going north
-            grid[path[i][1]][path[i][0]]=replaceChar(grid[path[i][1]][path[i][0]], '1', 0)
-            grid[path[i+1][1]][path[i+1][0]]=replaceChar(grid[path[i+1][1]][path[i+1][0]], '1', 2)
+        # Mover la información de la celda al nuevo diccionario
+        new_cell_data[new_cell_id] = cell_info
 
-    return grid, path
+    # Actualizar el diccionario de datos de celdas con el nuevo diccionario
+    cell_data.clear()
+    cell_data.update(new_cell_data)
+
+# Porcentaje de terreno Grass deseado
+grass_percentage = 1
+
+def generate_cell(x, y):
+    # Generar información sobre una nueva celda
+    cell_id = f"C{x}_{y}"
+    cell_data[cell_id] = {terrain: False for terrain in terrain_types}
+
+    # Determinar el tipo de terreno
+    if random.random() < grass_percentage:
+        cell_data[cell_id]["Grass"] = True
+
+def generate_chunk(start_x, start_y, width, height):
+    # Generar un nuevo chunk
+    chunk = Chunk(start_x, start_y, width, height)
+
+    for x in range(start_x, start_x + width):
+        for y in range(start_y, start_y + height):
+            generate_cell(x, y)
+            chunk.cells[f"C{x}_{y}"] = cell_data[f"C{x}_{y}"]
+
+    return chunk
+
+def find_chunk_at(x, y):
+    # Buscar el chunk que contiene la posición (x, y)
+    for chunk in chunks:
+        if chunk.start_x <= x < chunk.start_x + chunk.width * cell_size and chunk.start_y <= y < chunk.start_y + chunk.height * cell_size:
+            return chunk
+    return None
 
 
-def randomOpenRoom(grid):
-    reachable = []
-    for i in range(len(grid)):
-        for j in range(len(grid[0])):
-            if grid[i][j] != '0000':
-                reachable.append([j,i])
-    random.shuffle(reachable)
-    return reachable[0]
-
-
-def randomUnreachableRoom(grid):
-    unreachable = []
-    for i in range(len(grid)):
-        for j in range(len(grid[0])):
-            if grid[i][j] == '0000':
-                unreachable.append([j,i])
-    random.shuffle(unreachable)
-    return unreachable[0]
-
-
-def hasUnreachableRooms(grid):
-    unreachable = False
-    for i in range(len(grid)):
-        for j in range(len(grid[0])):
-            if grid[i][j] == '0000':
-                unreachable = True
-                break
-    return unreachable
-
-
-def countUnreachableRooms(grid):
-    count = 0
-    for i in range(len(grid)):
-        for j in range(len(grid[0])):
-            if grid[i][j] == '0000':
-                count += 1
-    return count
-
-
-def fullyConnectRooms(roomGrid):
-    while hasUnreachableRooms(roomGrid):
-        unreachableRoom = randomUnreachableRoom(roomGrid)
-        openRoom = randomOpenRoom(roomGrid)
-        generatePath(roomGrid, unreachableRoom, openRoom)
-    return roomGrid
-
-
-def percentageUnreachable(grid):
-    count = countUnreachableRooms(grid)
-    return (count/(len(grid)*len(grid[0])))*100
-
-
-def connectRoomsEnsuringMinimum(grid, percentage):
-    while (100 - percentageUnreachable(grid)) < percentage:
-        unreachableRoom = randomUnreachableRoom(grid)
-        openRoom = randomOpenRoom(grid)
-        generatePath(grid, unreachableRoom, openRoom)
-    return grid
-            
-
-def main():
-    print("\nWorld size: {0}x{1}".format(WIDTH,HEIGHT))
-    print("Room size: {0}x{1}".format(ROOM_WIDTH,ROOM_HEIGHT))
-    roomGrid = [['0000' for x in range(HORIZONTAL_ROOMS)] for y in range(VERTICAL_ROOMS)]
-    print("Grid size: {0}x{1}\n".format(len(roomGrid[0]),len(roomGrid)))
-
-    start= [random.randint(0,len(roomGrid)-1), random.randint(0,len(roomGrid[0])-1)]
-    end = [random.randint(0,len(roomGrid)-1), random.randint(0,len(roomGrid[0])-1)]
-    print("{0} to {1}".format(start, end))
-    while start==end:
-        end = [random.randint(0,len(roomGrid)-1), random.randint(0,len(roomGrid[0])-1)]
+# Función para generar chunks al norte, sur, este, oeste y diagonales del chunk inicial
+def generate_surrounding_chunks(initial_chunk):
+    chunks = []
     
-    roomGrid, mainPath = generatePath(roomGrid, start, end)
-    print(roomGridString(roomGrid, start, end))
+    # Coordenadas de los chunks adyacentes y diagonales
+    directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
-    hasUnreachable = hasUnreachableRooms(roomGrid)
-    print("Has unreachable rooms?: {0}".format(hasUnreachable))
-    if hasUnreachable:
-        unreachableCount = countUnreachableRooms(roomGrid)
-        percentage = percentageUnreachable(roomGrid)
-        print("Has {0} unreachable rooms accounting for {1}%".format(unreachableCount, percentage))
-        print("{0}% of the map is visitable".format(100-percentage))
-        roomGrid = connectRoomsEnsuringMinimum(roomGrid, 70)
-        print("\nEnsuring 70% of grid connected:")
-        print(roomGridString(roomGrid, start, end))
-        unreachableCount = countUnreachableRooms(roomGrid)
-        percentage = percentageUnreachable(roomGrid)
-        print("Has {0} unreachable rooms accounting for {1}%".format(unreachableCount, percentage))
-        print("{0}% of the map is visitable".format(100-percentage))
-    # too many openings in rooms -> either go from a random unreachable room to the CLOSEST open room, or don't connect everything and just settle for a minimum percentage
-    
-    
+    for dx, dy in directions:
+        start_x = initial_chunk.start_x + dx * initial_chunk.width
+        start_y = initial_chunk.start_y + dy * initial_chunk.height
+        chunk = generate_chunk(start_x, start_y, initial_chunk.width, initial_chunk.height)
+        chunks.append(chunk)
 
+    return chunks
 
-if __name__ == "__main__":
-    main()
+# Inicializar Pygame
+pygame.init()
+
+# Tamaño de la pantalla y la celda
+screen_size = (16 * 32, 16 * 32)  # 32x32 chunks * 16x16 cells per chunk
+cell_size = 16
+
+# Posición inicial del jugador en celdas (más hacia el centro)
+player = Player(16, 16, cell_size)  # Start at the center of the initial chunk
+
+# Configuración de la pantalla
+screen = pygame.display.set_mode(screen_size)
+pygame.display.set_caption("Juego de Celdas")
+
+# Colores
+green = (0, 255, 0)
+white = (255, 255, 255)
+
+# Diccionario para almacenar información sobre cada tipo de terreno
+terrain_types = ["Grass"]
+
+# Lista para almacenar chunks
+chunks = []
+
+# Diccionario para almacenar información sobre cada celda
+cell_data = {}
+
+# Coordenadas del chunk inicial
+chunk_width = 32  
+chunk_height = 32
+initial_chunk_x = 0  # Por ejemplo, en el centro del mapa
+initial_chunk_y = 0  # Por ejemplo, en el centro del mapa
+
+# Generar el primer chunk inicial
+initial_chunk = generate_chunk(initial_chunk_x, initial_chunk_y, chunk_width, chunk_height)
+chunks.append(initial_chunk)
+
+# Generar chunks alrededor del chunk inicial
+surrounding_chunks = generate_surrounding_chunks(initial_chunk)
+chunks.extend(surrounding_chunks)
+
+# Reloj para controlar la velocidad de actualización
+clock = pygame.time.Clock()
+FPS = 60
+
+while True:
+    clock.tick(FPS)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_w:
+                player.move(0, -1, cell_data)
+            elif event.key == pygame.K_s:
+                player.move(0, 1, cell_data)
+            elif event.key == pygame.K_a:
+                player.move(-1, 0, cell_data)
+            elif event.key == pygame.K_d:
+                player.move(1, 0, cell_data)
+    # Mostrar en qué chunk se encuentra el jugador
+    if player.current_chunk:
+        print(f"Player is in chunk ({player.current_chunk.start_x // chunk_width}, {player.current_chunk.start_y // chunk_height})")
+
+    # Rellenar la pantalla con el color negro
+    screen.fill((0, 0, 0))
+
+    # Dibujar celdas exploradas
+    for cell_id, cell_info in cell_data.items():
+        x = int(cell_id[1:].split('_')[0])
+        y = int(cell_id[1:].split('_')[1])
+
+        if cell_info["Grass"]:
+            pygame.draw.rect(screen, green, (x * cell_size, y * cell_size, cell_size, cell_size))
+
+    # Dibujar jugador blanco en su posición actual
+    pygame.draw.rect(screen, white, (player.x * cell_size, player.y * cell_size, cell_size, cell_size))
+
+    pygame.display.flip()
