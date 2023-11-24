@@ -12,11 +12,7 @@ class Player:
         new_x = self.x + dx
         new_y = self.y + dy
         new_cell_id = f"C{new_x}_{new_y}"
-        
-        if (terrain_data[new_cell_id]["Forest"] or terrain_data[new_cell_id]["Mountain"] or terrain_data[new_cell_id]["Lake"]):
-            print("terraind colsion")
-        else:
-            update_explored_area(dx, dy)
+        update_explored_area(dx, dy)
 
 def generate_initial_view():
     # Generar la vista inicial del mapa alrededor del jugador
@@ -25,7 +21,6 @@ def generate_initial_view():
             cell_id = f"C{x}_{y}"
             if cell_id not in cell_data:
                 generate_cell(x, y)
-
 
 def update_explored_area(dx, dy):
     # Actualizar el área explorada alrededor del jugador
@@ -54,6 +49,8 @@ def move_terrain(dx, dy):
     cell_data.clear()
     cell_data.update(new_cell_data)
 
+# Porcentaje de terreno Grass deseado
+grass_percentage = 1
 def generate_cell(x, y):
     # Generar información sobre una nueva celda
     cell_id = f"C{x}_{y}"
@@ -61,13 +58,7 @@ def generate_cell(x, y):
     
     # Determinar el tipo de terreno
     if random.random() < grass_percentage:
-        terrain = "Grass"
-    else:
-        terrain = random.choice([t for t in terrain_types if t != "Grass"])
-
-    cell_data[cell_id][terrain] = True
-    cell_data[cell_id]["Explored"] = True  # Agregar la propiedad "Explored"
-
+        cell_data[cell_id]["Grass"] = True
 
 # Inicializar Pygame
 pygame.init()
@@ -85,17 +76,10 @@ pygame.display.set_caption("Juego de Celdas")
 
 # Colores
 green = (0, 255, 0)
-dark_green = (0, 100, 0)
 white = (255, 255, 255)
-black = (0, 0, 0)
-brown = (139, 69, 19)
-blue = (0, 0, 255)
 
 # Diccionario para almacenar información sobre cada tipo de terreno
-terrain_types = ["Mountain", "Lake", "Forest", "Grass"]
-
-# Porcentaje de terreno Grass deseado
-grass_percentage = 0.9
+terrain_types = ["Grass"]
 
 # Diccionario para almacenar información sobre cada celda
 cell_data = {}
@@ -125,24 +109,15 @@ while True:
                 player.move(1, 0, cell_data)
 
     # Rellenar la pantalla con el color negro
-    screen.fill(black)
+    screen.fill((0, 0, 0))
 
-    # Generar la vista inicial y dibujar celdas exploradas
-    generate_initial_view()
-
+    # Dibujar celdas exploradas
     for cell_id, cell_info in cell_data.items():
         x = int(cell_id[1:].split('_')[0])
         y = int(cell_id[1:].split('_')[1])
 
-        if cell_info.get("Explored", False):
-            if cell_info["Mountain"]:
-                pygame.draw.rect(screen, brown, (x * cell_size, y * cell_size, cell_size, cell_size))
-            elif cell_info["Lake"]:
-                pygame.draw.rect(screen, blue, (x * cell_size, y * cell_size, cell_size, cell_size))
-            elif cell_info["Forest"]:
-                pygame.draw.rect(screen, dark_green, (x * cell_size, y * cell_size, cell_size, cell_size))
-            elif cell_info["Grass"]:
-                pygame.draw.rect(screen, green, (x * cell_size, y * cell_size, cell_size, cell_size))
+        if cell_info["Grass"]:
+            pygame.draw.rect(screen, green, (x * cell_size, y * cell_size, cell_size, cell_size))
 
     # Dibujar jugador blanco en su posición actual
     pygame.draw.rect(screen, white, ((screen_size[0] // (2 * cell_size)) * cell_size, (screen_size[1] // (2 * cell_size)) * cell_size, cell_size, cell_size))
