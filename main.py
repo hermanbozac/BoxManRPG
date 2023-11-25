@@ -47,7 +47,7 @@ INITIAL_CHUNK_X = 12
 INITIAL_CHUNK_Y = 12
 
 # Tamaño de la pantalla y la celda
-SCREEN_SIZE = (512, 512)  # 32x32 chunks * 16x16 cells per chunk
+SCREEN_SIZE = (528, 528)  # 32x32 chunks * 16x16 cells per chunk
 
 # Reloj para controlar la velocidad de actualización
 clock = pygame.time.Clock()
@@ -71,13 +71,25 @@ class Player:
                     if cell_id == player.current_cell:
                         print("la celda en la que está el jugador es ", cell_id)
                         print("El chunk_id correspondiente es ", cell_info.get("chunk_id", "No chunk_id"))
-
+                        if self.current_chunk == cell_info.get("chunk_id"):
+                            print("si mi current chunk es igual al de la celda Tranqui")
+                        else:
+                            print("CAMBIE DE CHUNK ID")
+                            self.current_chunk = cell_info.get("chunk_id")
 
 
 
 
 
             update_explored_area(dx, dy)
+    def get_current_chunk(player_x, player_y):
+        for chunk in chunks:
+            if chunk.start_x <= player_x < chunk.start_x + chunk.width and \
+                    chunk.start_y <= player_y < chunk.start_y + chunk.height:
+                return chunk
+
+        # Si el jugador no está en ningún chunk existente, puedes manejarlo de la manera que desees
+        return None
 
 
 class Chunk:
@@ -90,7 +102,20 @@ class Chunk:
         self.width = width
         self.height = height
         self.cells = {}
+    def get_neighboring_chunk_ids(self):
+        neighboring_chunk_ids = []
 
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                if dx == 0 and dy == 0:
+                    continue  # Saltar el propio chunk
+
+                neighbor_x = self.start_x + dx * CHUNK_WIDTH
+                neighbor_y = self.start_y + dy * CHUNK_HEIGHT
+
+                neighboring_chunk_ids.append((neighbor_x, neighbor_y))
+
+        return neighboring_chunk_ids
 
 
 # Posición inicial del jugador en celdas (más hacia el centro)
@@ -163,14 +188,14 @@ def generate_chunk(start_x, start_y, width, height):
 
 def spawn_chunks(center_x, center_y):
     # Instanciar los 8 chunks relativos al chunk actual
-    spawn_relative_chunk(center_x - 8, center_y - 8)  # Noroeste
-    spawn_relative_chunk(center_x, center_y - 8)      # Norte
-    spawn_relative_chunk(center_x + 8, center_y - 8)  # Noreste
-    spawn_relative_chunk(center_x - 8, center_y)      # Oeste
-    spawn_relative_chunk(center_x + 8, center_y)      # Este
-    spawn_relative_chunk(center_x - 8, center_y + 8)  # Suroeste
-    spawn_relative_chunk(center_x, center_y + 8)      # Sur
-    spawn_relative_chunk(center_x + 8, center_y + 8)  # Sureste
+    current_chunk = get_current_chunk(center_x, center_y)
+    neighboring_chunk_ids = current_chunk.get_neighboring_chunk_ids()
+
+    for neighbor_id in neighboring_chunk_ids:
+        spawn_relative_chunk(neighbor_id[0], neighbor_id[1])
+
+    print(neighboring_chunk_ids)
+
 
 def spawn_relative_chunk(center_x, center_y):
     new_chunk = generate_chunk(center_x, center_y, CHUNK_WIDTH, CHUNK_HEIGHT)
@@ -213,6 +238,11 @@ def generar_anillo_n_2(center_x, center_y):
                 nuevo_chunk = generate_chunk(nuevo_x, nuevo_y, CHUNK_WIDTH, CHUNK_HEIGHT)
                 chunks.append(nuevo_chunk)
 
+# Agrega esta función para obtener los chunks vecinos de un chunk dado
+
+
+
+
 
 def bucle_principal(player, current_chunk):
     # Bucle principal del juego
@@ -249,7 +279,8 @@ def bucle_principal(player, current_chunk):
                 pygame.draw.rect(screen, GREEN, (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
         # Dibujar jugador blanco en su posición actual
-        pygame.draw.rect(screen, WHITE, ((player.x - 0.5) * CELL_SIZE, (player.y - 0.5) * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+        pygame.draw.rect(screen, WHITE, ((16 ) * CELL_SIZE, (16 ) * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+
 
         pygame.display.flip()
 
