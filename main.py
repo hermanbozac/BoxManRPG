@@ -60,34 +60,28 @@ class Player:
         self.current_cell = f"C{x}_{y}"
         self.current_chunk = 1
 
-    def move(self, dx, dy):
+    def move(self, dx, dy, current_chunk):
         if self.current_cell == (16, 16):  # primer movimiento
             self.current_cell = f"C{self.current_cell[0] + dx}_{self.current_cell[1] + dy}"
         else:  # el resto de los movimientos
             self.current_cell = f"C{int(self.current_cell[1:].split('_')[0]) + dx}_{int(self.current_cell[1:].split('_')[1]) + dy}" 
-            print("player cell ", player.current_cell)      
+            #POSITION print("player cell ", player.current_cell)      
             for chunk in chunks:
                 for cell_id, cell_info in chunk.cells.items():
                     if cell_id == player.current_cell:
-                        print("la celda en la que está el jugador es ", cell_id)
-                        print("El chunk_id correspondiente es ", cell_info.get("chunk_id", "No chunk_id"))
                         if self.current_chunk == cell_info.get("chunk_id"):
-                            print("si mi current chunk es igual al de la celda Tranqui")
+                            pass
                         else:
-                            print("CAMBIE DE CHUNK ID")
                             self.current_chunk = cell_info.get("chunk_id")
-
-
-
-
-
-            update_explored_area(dx, dy)
+                            print("entre al chunk: ",self.current_chunk)
+                            # Obtener chunks adyacentes al chunk actual del jugador
+                            new_adjacent_chunks = current_chunk.get_adjacent_chunks()
+            update_explored_area(dx, dy,current_chunk)
     def get_current_chunk(player_x, player_y):
         for chunk in chunks:
             if chunk.start_x <= player_x < chunk.start_x + chunk.width and \
                     chunk.start_y <= player_y < chunk.start_y + chunk.height:
                 return chunk
-
         # Si el jugador no está en ningún chunk existente, puedes manejarlo de la manera que desees
         return None
 
@@ -102,20 +96,22 @@ class Chunk:
         self.width = width
         self.height = height
         self.cells = {}
-    def get_neighboring_chunk_ids(self):
-        neighboring_chunk_ids = []
+    def get_adjacent_chunks(self):
+        for chunk in chunks:
+            if chunk.id == player.current_chunk:
+                adjacent_chunks = []
+                # Obtener las coordenadas del chunk actual del jugador
+                player_chunk_x, player_chunk_y = chunk.start_x, chunk.start_y
+                for dx in range(-1, 2):
+                    for dy in range(-1, 2):
+                        if dx == 0 and dy == 0:
+                            continue  # Saltar el propio chunk
+                        neighbor_x = player_chunk_x + dx * CHUNK_WIDTH
+                        neighbor_y = player_chunk_y + dy * CHUNK_HEIGHT
+                        adjacent_chunks.append((neighbor_x, neighbor_y))
+                print("Chunks adyacentes:", adjacent_chunks)
 
-        for dx in range(-1, 2):
-            for dy in range(-1, 2):
-                if dx == 0 and dy == 0:
-                    continue  # Saltar el propio chunk
 
-                neighbor_x = self.start_x + dx * CHUNK_WIDTH
-                neighbor_y = self.start_y + dy * CHUNK_HEIGHT
-
-                neighboring_chunk_ids.append((neighbor_x, neighbor_y))
-
-        return neighboring_chunk_ids
 
 
 # Posición inicial del jugador en celdas (más hacia el centro)
@@ -123,6 +119,13 @@ player = Player(16, 16)
 
 # Configuración de la pantalla
 screen = pygame.display.set_mode(SCREEN_SIZE)
+
+def get_missing_chunks(adjacent_chunks, existing_chunk_coords):
+    missing_chunks = [chunk for chunk in adjacent_chunks if chunk not in existing_chunk_coords]
+    return missing_chunks
+
+
+
 
 
 # Función para obtener el chunk actual basado en las coordenadas del jugador
@@ -135,10 +138,10 @@ def get_current_chunk(player_x, player_y):
     # Si el jugador no está en ningún chunk existente, puedes manejarlo de la manera que desees
     return None
 
-def update_explored_area(dx, dy):
-    move_terrain(-dx, -dy)
+def update_explored_area(dx, dy,current_chunk):
+    move_terrain(-dx, -dy,current_chunk)
 
-def move_terrain(dx, dy):
+def move_terrain(dx, dy,current_chunk):
     # Crear un nuevo diccionario de datos de celdas
     new_cell_data = {}
 
@@ -184,17 +187,28 @@ def generate_chunk(start_x, start_y, width, height):
     return chunk
 
 
-
-
 def spawn_chunks(center_x, center_y):
-    # Instanciar los 8 chunks relativos al chunk actual
+    # Obtener el ID del chunk actual
     current_chunk = get_current_chunk(center_x, center_y)
-    neighboring_chunk_ids = current_chunk.get_neighboring_chunk_ids()
+    current_chunk_id = (current_chunk.start_x, current_chunk.start_y)
+
+    # Obtener los IDs de los chunks adyacentes al chunk actual
+    neighboring_chunk_ids = []
+    for dx in range(-1, 2):
+        for dy in range(-1, 2):
+            if dx == 0 and dy == 0:
+                continue  # Saltar el propio chunk
+
+            neighbor_x = current_chunk.start_x + dx * CHUNK_WIDTH
+            neighbor_y = current_chunk.start_y + dy * CHUNK_HEIGHT
+
+            neighboring_chunk_ids.append((neighbor_x, neighbor_y))
+
+    # Filtrar los IDs de los chunks adyacentes para excluir el propio chunk actual
+    neighboring_chunk_ids = [chunk_id for chunk_id in neighboring_chunk_ids if chunk_id != current_chunk_id]
 
     for neighbor_id in neighboring_chunk_ids:
         spawn_relative_chunk(neighbor_id[0], neighbor_id[1])
-
-    print(neighboring_chunk_ids)
 
 
 def spawn_relative_chunk(center_x, center_y):
@@ -253,13 +267,13 @@ def bucle_principal(player, current_chunk):
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_w:
-                    player.move(0, -1)
+                    player.move(0, -1, current_chunk)
                 elif event.key == pygame.K_s:
-                    player.move(0, 1)
+                    player.move(0, 1, current_chunk)
                 elif event.key == pygame.K_a:
-                    player.move(-1, 0)
+                    player.move(-1, 0, current_chunk)
                 elif event.key == pygame.K_d:
-                    player.move(1, 0)
+                    player.move(1, 0, current_chunk)
                 elif event.key == pygame.K_RETURN:  # Tecla Enter
                     return
                 elif event.key == pygame.K_ESCAPE:  # Tecla Escape
