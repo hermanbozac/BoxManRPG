@@ -1,265 +1,315 @@
 import pygame
 import sys
-import random
-# Inicializar Pygame
+
 pygame.init()
-
-
 pygame.display.set_caption("BoxMan RPG Survival")
-
-# Ruta de la imagen PNG
-image_path = "Background.png"
-
-# Cargar la imagen y obtener su rectángulo
-background_image = pygame.image.load(image_path)
-background_rect = background_image.get_rect()
-
-# Definir constantes
-CELL_SIZE = 16
-GRASS_PERCENTAGE = 1
-
-# Contadores globales para celdas y chunks
-CELL_COUNTER = 1
-CHUNK_COUNTER = 1
-
-
-# Colores
-GREEN = (0, 255, 0)
-WHITE = (255, 255, 255)
-
-# Colores adicionales
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-
-# Diccionario para almacenar información sobre cada tipo de terreno
-TERRAIN_TYPES = ["Grass"]
-
-# Lista para almacenar chunks
-chunks = []
-
-# Diccionario para almacenar información sobre cada celda
-cell_data = {}
-
-# Coordenadas del chunk inicial
-CHUNK_WIDTH = 8
-CHUNK_HEIGHT = 8
-INITIAL_CHUNK_X = 12
-INITIAL_CHUNK_Y = 12
-
-# Tamaño de la pantalla y la celda
-SCREEN_SIZE = (528, 528)  # 32x32 chunks * 16x16 cells per chunk
-
-# Reloj para controlar la velocidad de actualización
 clock = pygame.time.Clock()
 FPS = 60
-
+SCREEN_SIZE = (528, 528)
+CHUNK_WIDTH = 128
+CHUNK_HEIGHT = 128
+CHUNK_COUTNER = 1
+CELL_SIZE = 16
+PLAYER_SIZE = 16
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+chunks = []
+exist_chunks = [(0, 0), (-128, -128), (-128, 0), (-128, 128), (0, -128), (0, 128), (128, -128), (128, 0), (128, 128)]
+neighbor_chunks = []
+no_neighbor_chunks = []
+missing_chunks =[]
+# ...CLASES...
 class Player:
-    def __init__(self, x, y):
+    def __init__(self, x, y):#solucionado
         self.x = x
         self.y = y
-        self.current_cell = f"C{x}_{y}"
-        self.current_chunk = 1
-
-    def move(self, dx, dy, current_chunk):
-        if self.current_cell == (16, 16):  # primer movimiento
-            self.current_cell = f"C{self.current_cell[0] + dx}_{self.current_cell[1] + dy}"
-        else:  # el resto de los movimientos
-            self.current_cell = f"C{int(self.current_cell[1:].split('_')[0]) + dx}_{int(self.current_cell[1:].split('_')[1]) + dy}" 
-            #POSITION print("player cell ", player.current_cell)      
-            for chunk in chunks:
-                for cell_id, cell_info in chunk.cells.items():
-                    if cell_id == player.current_cell:
-                        if self.current_chunk == cell_info.get("chunk_id"):
-                            pass
-                        else:
-                            self.current_chunk = cell_info.get("chunk_id")
-                            print("entre al chunk: ",self.current_chunk)
-                            # Obtener chunks adyacentes al chunk actual del jugador
-                            new_adjacent_chunks = current_chunk.get_adjacent_chunks()
-            update_explored_area(dx, dy,current_chunk)
-    def get_current_chunk(player_x, player_y):
+        self.relative_position_x = x
+        self.relative_position_y = y
+        self.current_chunk = (self.x,self.y)
+    def get_current_chunk(self):
+        print("xxxxxxxxxxxxxxx funcion get current chunk leng chunks",len(chunks))
         for chunk in chunks:
-            if chunk.start_x <= player_x < chunk.start_x + chunk.width and \
-                    chunk.start_y <= player_y < chunk.start_y + chunk.height:
-                return chunk
-        # Si el jugador no está en ningún chunk existente, puedes manejarlo de la manera que desees
-        return None
+            if chunk.is_inside_chunk(self.relative_position_x, self.relative_position_y):
+                print("en los chunks encontre las posiciones relativas del jugador")
+                print("chunk id",chunk.id)
+                self.current_chunk = chunk
+                break
+            else:
+                pass
 
+
+
+
+        
+    def get_neighbor_chunks(self):
+        global neighbor_chunks
+        global exist_chunks
+        global no_neighbor_chunks
+        neighbor_chunks.clear()  # Limpiar la lista antes de agregar nuevos elementos
+        # Obtener los IDs de los chunks adyacentes al chunk actual
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                if dx == 0 and dy == 0:
+                    continue  # Saltar el propio chunk
+                neighbor_x = self.current_chunk.start_x + dx * CHUNK_WIDTH
+                neighbor_y = self.current_chunk.start_y + dy * CHUNK_HEIGHT
+                neighbor_chunks.append((neighbor_x, neighbor_y))
+        for neighbor in neighbor_chunks:
+            if neighbor in exist_chunks:
+                pass
+            else:
+                exist_chunks.append(neighbor)
+    def get_non_neighbor_chunks(self):
+        global neighbor_chunks
+        global no_neighbor_chunks
+        global exist_chunks
+
+        # Encontrar los chunks que no son vecinos
+        current_chunk_coord = (self.current_chunk.position[0], self.current_chunk.position[1])
+        no_neighbor_chunks.clear()
+        
+        for chunk in exist_chunks:
+            if chunk in neighbor_chunks:
+                pass
+            else:
+                if chunk == current_chunk_coord:
+                    pass
+                else:
+                    no_neighbor_chunks.append(chunk)
+    def remove_non_neighbor_chunks(self,direction):
+        global chunks
+        global exist_chunks
+        global no_neighbor_chunks
+        global neighbor_chunks
+        chunks_to_remove = []
+        player_chunk_position = (self.current_chunk.position[0], self.current_chunk.position[1])
+        for chunk_position in no_neighbor_chunks:
+            if chunk_position not in neighbor_chunks:
+                if chunk_position == player_chunk_position:
+                    pass
+                else:
+                    # Buscar el fragmento correspondiente en la lista de chunks
+                    #encontrar valores relativos para adicionar en cada  direcion
+                    compensation_x = 0
+                    compensation_y = 0
+                    if direction == (0, 16):
+                        compensation_y = -0
+                    elif direction == (0, -16):
+                        compensation_y = 0
+                    elif direction == (16, 0):
+                        compensation_x = -0
+                    elif direction == (-16, 0):
+                        compensation_x = 0
+
+                    chunk_to_remove = next((chunk for chunk in chunks if (chunk.start_x +  compensation_x, chunk.start_y + compensation_y) == chunk_position), None)
+                    if chunk_to_remove:
+                        chunks_to_remove.append(chunk_to_remove)
+                    else:
+                        pass
+        for chunk in chunks_to_remove:
+            print("chunk id ",chunk.id)
+            chunk_position = (chunk.start_x, chunk.start_y)
+            chunks.remove(chunk)
+            exist_chunks.remove(chunk_position)
+
+    def get_missing_chunks(self):
+        global neighbor_chunks
+        global missing_chunks
+        global exist_chunks
+        global no_neighbor_chunks
+
+        
+        player_chunk_position = (self.current_chunk.position[0], self.current_chunk.position[1])
+        aux_nueve_chunks = neighbor_chunks
+        aux_nueve_chunks.append(player_chunk_position)
+        exist_chunks = []
+        for chunk in chunks:
+            chunk_position = (chunk.start_x,chunk.start_y)
+            exist_chunks.append(chunk_position)
+        for chunk in aux_nueve_chunks:
+            for exist in exist_chunks:
+                if exist in aux_nueve_chunks:
+                    pass
+                else:
+                    missing_chunks.append(exist)
+
+                    
+            break
+    def spawn_missing_chunks(self,direction):
+        global missing_chunks
+        compensation_x = 0
+        compensation_y = 0
+        if direction == (0, 16):
+            compensation_x = self.relative_position_x
+            compensation_y -= 0
+            self.calculating(compensation_x,compensation_y)
+        elif direction == (0, -16):
+            compensation_x = self.relative_position_x
+            compensation_y += 112
+            self.calculating(compensation_x,compensation_y)
+        elif direction == (16, 0):
+            compensation_x = 0
+            compensation_y += self.relative_position_y
+            self.calculating(compensation_x,compensation_y)
+        elif direction == (-16, 0):
+            compensation_x = 112
+            compensation_y += self.relative_position_y
+            self.calculating(compensation_x,compensation_y)
+    def calculating(self,compensation_x,compensation_y):
+        global CHUNK_COUTNER
+        for positions in missing_chunks:
+            width = CHUNK_WIDTH
+            height = CHUNK_HEIGHT
+            chunk = generate_chunk(positions[0]+compensation_x, positions[1] + compensation_y, width, height,CHUNK_COUTNER)
+            chunks.append(chunk)
+            CHUNK_COUTNER += 1    
+    def move(self, direction):
+        if direction == (0, 16):
+            
+            for chunk in chunks:
+                chunk.mobile_y += CELL_SIZE
+            self.relative_position_y += CELL_SIZE
+            self.aux(direction)
+        elif direction == (0, -16):
+            
+            for chunk in chunks:
+                chunk.mobile_y -= CELL_SIZE
+            self.relative_position_y -= CELL_SIZE
+            self.aux(direction)
+        elif direction == (16, 0):
+            for chunk in chunks:
+                chunk.mobile_x += CELL_SIZE
+            self.relative_position_x += CELL_SIZE
+            self.aux(direction)
+        elif direction == (-16, 0):
+            
+            for chunk in chunks:
+                chunk.mobile_x -= CELL_SIZE
+            self.relative_position_x -= CELL_SIZE
+            self.aux(direction)
+        else:
+            return        
+
+    def aux(self, direction):
+        global no_neighbor_chunks
+        global missing_chunks
+        global exist_chunks
+        global no_neighbor_chunks
+        global neighbor_chunks
+        aux_chunk = self.current_chunk
+        
+        self.get_current_chunk()
+        for chunk in chunks:
+            if chunk.id == self.current_chunk.id:
+                print("chunk object id = self current chunk id",chunk.id)
+                chunk = self.current_chunk
+
+    
+                print("CAMBIE AL CHUNK ID:", self.current_chunk.id)
+                no_neighbor_chunks = []
+                missing_chunks = []
+                exist_chunks = []
+                neighbor_chunks = []
+                for chunk in chunks:
+                    chunk_position = (chunk.start_x, chunk.start_y)
+                    exist_chunks.append(chunk_position)
+
+                self.get_neighbor_chunks()
+                self.get_non_neighbor_chunks()
+                self.remove_non_neighbor_chunks(direction)
+                self.get_missing_chunks()
+                self.spawn_missing_chunks(direction)
+            else:
+                pass
+
+
+
+
+    def get_draw_position(self, screen_width, screen_height): #esto esta ok
+        # Calcular la posición de dibujo alineada con la cuadrícula del chunk y centrada en la pantalla
+        draw_x = (screen_width // 2 - PLAYER_SIZE // 2 + self.x * CELL_SIZE - CHUNK_WIDTH // 2) % CHUNK_WIDTH
+        draw_y = (screen_height // 2 - PLAYER_SIZE // 2 + self.y * CELL_SIZE - CHUNK_HEIGHT // 2) % CHUNK_HEIGHT
+        return draw_x, draw_y
+    def is_inside_current_chunk(self, chunk): #funciona ok
+        """
+        Verifica si la posición actual del jugador está dentro del chunk proporcionado.
+        """
+        if chunk is not None:
+            return chunk.is_inside_chunk(self.relative_position_x, self.relative_position_y)
+        else:
+            return False
 
 class Chunk:
-    def __init__(self, start_x, start_y, width, height):
-        global CHUNK_COUNTER
-        self.id = CHUNK_COUNTER
-        CHUNK_COUNTER += 1
+    def __init__(self, start_x, start_y, width, height,id):
         self.start_x = start_x
         self.start_y = start_y
+        self.mobile_x = start_x  # Variable para rastrear la posición móvil x
+        self.mobile_y = start_y  # Variable para rastrear la posición móvil y
         self.width = width
         self.height = height
-        self.cells = {}
-    def get_adjacent_chunks(self):
-        for chunk in chunks:
-            if chunk.id == player.current_chunk:
-                adjacent_chunks = []
-                # Obtener las coordenadas del chunk actual del jugador
-                player_chunk_x, player_chunk_y = chunk.start_x, chunk.start_y
-                for dx in range(-1, 2):
-                    for dy in range(-1, 2):
-                        if dx == 0 and dy == 0:
-                            continue  # Saltar el propio chunk
-                        neighbor_x = player_chunk_x + dx * CHUNK_WIDTH
-                        neighbor_y = player_chunk_y + dy * CHUNK_HEIGHT
-                        adjacent_chunks.append((neighbor_x, neighbor_y))
-                print("Chunks adyacentes:", adjacent_chunks)
+        self.position = (self.start_x,self.start_y)
+        self.id = id
+
+    def is_inside_chunk(self, x, y):
+        """
+        Verifica si las coordenadas (x, y) están dentro de los límites del chunk.
+        """
+
+        inside_limits_x = self.start_x <= x < self.start_x + self.width
+        inside_limits_y = self.start_y <= y < self.start_y + self.height
+
+  
+
+        return inside_limits_x and inside_limits_y
 
 
 
+# ...GENERADORES COMUNES...
+def generate_chunk(start_x, start_y, width, height,id):
+    
+    return Chunk(start_x, start_y, width, height,id)
 
-# Posición inicial del jugador en celdas (más hacia el centro)
-player = Player(16, 16)
+# ...GENERACION PRIMARIA DEL MUNDO...
+def spawn_first_chunk(player):
+    global CHUNK_COUTNER
+    start_x = player.x
+    start_y = player.y
+    width = CHUNK_WIDTH
+    height = CHUNK_HEIGHT
 
-# Configuración de la pantalla
-screen = pygame.display.set_mode(SCREEN_SIZE)
+    chunk = generate_chunk(start_x, start_y, width, height,CHUNK_COUTNER)
+    chunks.append(chunk)
+    CHUNK_COUTNER += 1
 
-def get_missing_chunks(adjacent_chunks, existing_chunk_coords):
-    missing_chunks = [chunk for chunk in adjacent_chunks if chunk not in existing_chunk_coords]
-    return missing_chunks
+def spawn_first_neighboring_chunks(player,faltant_chunks):
+    global CHUNK_COUTNER
+    global chunks
+    width = CHUNK_WIDTH
+    height = CHUNK_HEIGHT
 
+    # Generar los chunks faltantes
+    for chunk_coords in faltant_chunks:
+        start_x = chunk_coords[0]
+        start_y = chunk_coords[1]
+        chunk = generate_chunk(start_x, start_y, width, height,CHUNK_COUTNER)
+        chunks.append(chunk)
+        CHUNK_COUTNER += 1
+     
+######START GAME#####
 
-
-
-
-# Función para obtener el chunk actual basado en las coordenadas del jugador
-def get_current_chunk(player_x, player_y):
-    for chunk in chunks:
-        if chunk.start_x <= player_x < chunk.start_x + chunk.width and \
-                chunk.start_y <= player_y < chunk.start_y + chunk.height:
-            return chunk
-
-    # Si el jugador no está en ningún chunk existente, puedes manejarlo de la manera que desees
-    return None
-
-def update_explored_area(dx, dy,current_chunk):
-    move_terrain(-dx, -dy,current_chunk)
-
-def move_terrain(dx, dy,current_chunk):
-    # Crear un nuevo diccionario de datos de celdas
-    new_cell_data = {}
-
-    for cell_id, cell_info in cell_data.items():
-        x = int(cell_id[1:].split('_')[0]) + dx
-        y = int(cell_id[1:].split('_')[1]) + dy
-        new_cell_id = f"C{x}_{y}"
-
-        # Mover la información de la celda al nuevo diccionario
-        new_cell_data[new_cell_id] = cell_info
-
-    # Actualizar el diccionario de datos de celdas con el nuevo diccionario
-    cell_data.clear()
-    cell_data.update(new_cell_data)
-
-def generate_cell(x, y,chunk_id):
-    # Generar información sobre una nueva celda
-    cell_id = f"C{x}_{y}"
-
-    # Verificar si la celda ya existe antes de generarla nuevamente
-    if cell_id not in cell_data:
-        cell_data[cell_id] = {terrain: False for terrain in TERRAIN_TYPES}
-
-        # Determinar el tipo de terreno
-        if random.random() < GRASS_PERCENTAGE:
-            cell_data[cell_id]["Grass"] = True
-        # Agregar el chunk_id a la información de la celda
-        cell_data[cell_id]["chunk_id"] = chunk_id
-
-def generate_chunk(start_x, start_y, width, height):
-    # Generar un nuevo chunk
-    chunk = Chunk(start_x, start_y, width, height)
-
-    for x in range(start_x, start_x + width):
-        for y in range(start_y, start_y + height):
-            generate_cell(x, y, chunk.id)
-
-            # Verificar si la celda ya existe en el chunk antes de agregarla
-            cell_id = f"C{x}_{y}"
-            if cell_id not in chunk.cells:
-                chunk.cells[cell_id] = cell_data[cell_id]
-
-    return chunk
-
-
-def spawn_chunks(center_x, center_y):
-    # Obtener el ID del chunk actual
-    current_chunk = get_current_chunk(center_x, center_y)
-    current_chunk_id = (current_chunk.start_x, current_chunk.start_y)
-
-    # Obtener los IDs de los chunks adyacentes al chunk actual
-    neighboring_chunk_ids = []
-    for dx in range(-1, 2):
-        for dy in range(-1, 2):
-            if dx == 0 and dy == 0:
-                continue  # Saltar el propio chunk
-
-            neighbor_x = current_chunk.start_x + dx * CHUNK_WIDTH
-            neighbor_y = current_chunk.start_y + dy * CHUNK_HEIGHT
-
-            neighboring_chunk_ids.append((neighbor_x, neighbor_y))
-
-    # Filtrar los IDs de los chunks adyacentes para excluir el propio chunk actual
-    neighboring_chunk_ids = [chunk_id for chunk_id in neighboring_chunk_ids if chunk_id != current_chunk_id]
-
-    for neighbor_id in neighboring_chunk_ids:
-        spawn_relative_chunk(neighbor_id[0], neighbor_id[1])
-
-
-def spawn_relative_chunk(center_x, center_y):
-    new_chunk = generate_chunk(center_x, center_y, CHUNK_WIDTH, CHUNK_HEIGHT)
-    chunks.append(new_chunk)
-
-
-def generar_anillo_externo(center_x, center_y):
-    return
-    # Generar un anillo externo de 5x5 de nuevos chunks alrededor de las coordenadas proporcionadas
-    for dx in range(-2, 3):
-        for dy in range(-2, 3):
-            if abs(dx) <= 1 and abs(dy) <= 1:
-                continue  # Salta los 9 chunks del medio
-
-            nuevo_x = center_x + dx * CHUNK_WIDTH
-            nuevo_y = center_y + dy * CHUNK_HEIGHT
-
-            # Verificar si el nuevo chunk ya existe antes de generarlo nuevamente
-            chunk_existente = next((chunk for chunk in chunks if chunk.start_x == nuevo_x and chunk.start_y == nuevo_y), None)
-
-            if chunk_existente is None:
-                nuevo_chunk = generate_chunk(nuevo_x, nuevo_y, CHUNK_WIDTH, CHUNK_HEIGHT)
-                chunks.append(nuevo_chunk)
-
-def generar_anillo_n_2(center_x, center_y):
-    return
-    # Generar un anillo N+2 de 7x7 de nuevos chunks alrededor de las coordenadas proporcionadas
-    for dx in range(-3, 4):
-        for dy in range(-3, 4):
-            if abs(dx) <= 2 and abs(dy) <= 2:
-                continue  # Salta los 25 chunks del anillo N de 5x5
-
-            nuevo_x = center_x + dx * CHUNK_WIDTH
-            nuevo_y = center_y + dy * CHUNK_HEIGHT
-
-            # Verificar si el nuevo chunk ya existe antes de generarlo nuevamente
-            chunk_existente = next((chunk for chunk in chunks if chunk.start_x == nuevo_x and chunk.start_y == nuevo_y), None)
-
-            if chunk_existente is None:
-                nuevo_chunk = generate_chunk(nuevo_x, nuevo_y, CHUNK_WIDTH, CHUNK_HEIGHT)
-                chunks.append(nuevo_chunk)
-
-# Agrega esta función para obtener los chunks vecinos de un chunk dado
+def main():
+    player = Player(0, 0)
+    screen = pygame.display.set_mode(SCREEN_SIZE)
+    spawn_first_chunk(player)
+    player.get_current_chunk()
+    player.get_neighbor_chunks()
+    spawn_first_neighboring_chunks(player,neighbor_chunks)
 
 
 
+    bucle_principal(player, screen)
 
-
-def bucle_principal(player, current_chunk):
-    # Bucle principal del juego
+def bucle_principal(player, screen):
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -267,122 +317,33 @@ def bucle_principal(player, current_chunk):
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_w:
-                    player.move(0, -1, current_chunk)
+                    direction= (0,+16)
+                    player.move(direction)
                 elif event.key == pygame.K_s:
-                    player.move(0, 1, current_chunk)
+                    direction= (0,-16)
+                    player.move(direction)
                 elif event.key == pygame.K_a:
-                    player.move(-1, 0, current_chunk)
+                    direction= (+16,0)
+                    player.move(direction)
                 elif event.key == pygame.K_d:
-                    player.move(1, 0, current_chunk)
-                elif event.key == pygame.K_RETURN:  # Tecla Enter
-                    return
-                elif event.key == pygame.K_ESCAPE:  # Tecla Escape
+                    direction= (-16,0)
+                    player.move(direction)
+                elif event.key == pygame.K_ESCAPE:
                     pygame.quit()
                     sys.exit()
-
-        # Resto del código para dibujar y actualizar la pantalla
         clock.tick(FPS)
         screen.fill((0, 0, 0))
 
-        # Dibujar celdas exploradas
-        for cell_id, cell_info in cell_data.items():
-            x = int(cell_id[1:].split('_')[0])
-            y = int(cell_id[1:].split('_')[1])
+        # Dibujar los chunks con las coordenadas ajustadas por el movimiento del mapa
+        for chunk in chunks:
+            pygame.draw.rect(screen, GREEN, (chunk.mobile_x+160, chunk.mobile_y+160, chunk.width, chunk.height), 8)
 
-            if cell_info["Grass"]:
-                pygame.draw.rect(screen, GREEN, (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+        # Dibujar jugador blanco en su posición actual alineada con la cuadrícula del chunk y centrada en la pantalla
+        draw_x, draw_y = player.get_draw_position(SCREEN_SIZE[0], SCREEN_SIZE[1])
+        pygame.draw.rect(screen, WHITE, (draw_x+208, draw_y+208, PLAYER_SIZE, PLAYER_SIZE))
 
-        # Dibujar jugador blanco en su posición actual
-        pygame.draw.rect(screen, WHITE, ((16 ) * CELL_SIZE, (16 ) * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-
-
-        pygame.display.flip()
-
-def mostrar_pantalla_inicio(screen):
-        # Dibujar la imagen de fondo
-    screen.blit(background_image, background_rect)
-    font = pygame.font.Font(None, 48)
-
-    start_text = font.render("Start", True, RED)
-    enter_text = font.render("ENTER", True, WHITE)  # Nuevo texto para la tecla Enter
-    esc_text = font.render("ESC", True, WHITE)  # Nuevo texto para el layer de la tecla ESC
-
-    start_rect = start_text.get_rect(center=(SCREEN_SIZE[0] // 2, SCREEN_SIZE[1] // 2 - 50))
-    enter_rect = enter_text.get_rect(center=start_rect.center)  # Centra el texto "Enter" sobre el botón "Start"
-    quit_rect = esc_text.get_rect(center=(SCREEN_SIZE[0] // 2, SCREEN_SIZE[1] // 2 + 50))
-    esc_rect = esc_text.get_rect(center=quit_rect.center)  # Centra el texto "ESC" sobre el botón "Quit"
-
-    # Agranda el botón "Start"
-    start_rect.inflate_ip(48, 16)
-    # Agranda el botón "Quit"
-    quit_rect.inflate_ip(48, 16)
-
-    pygame.draw.rect(screen, RED, start_rect)
-    pygame.draw.rect(screen, RED, quit_rect)
-
- 
-
-    # Dibujar la capa de texto "Enter"
-    screen.blit(enter_text, enter_rect)
-
-    # Dibujar la capa de texto "ESC"
-    screen.blit(esc_text, esc_rect)
-
-    pygame.display.flip()
-
-def main():
-
-    mostrando_pantalla_inicio = True
-    generando_mundo = False
-
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.KEYDOWN and mostrando_pantalla_inicio:
-                if event.key == pygame.K_RETURN:  # Tecla Enter
-                    mostrando_pantalla_inicio = False
-                    generando_mundo = True
-                    iniciar_juego_desde_pantalla_inicio(player)
-                elif event.key == pygame.K_ESCAPE:  # Tecla Escape
-                    pygame.quit()
-                    sys.exit()
-
-        if mostrando_pantalla_inicio:
-            mostrar_pantalla_inicio(screen)
-        elif generando_mundo:
-            bucle_principal(player, screen)
-
-def iniciar_juego_desde_pantalla_inicio(player):
-    # Generar el primer chunk inicial
-    initial_chunk = generate_chunk(INITIAL_CHUNK_X, INITIAL_CHUNK_Y, CHUNK_WIDTH, CHUNK_HEIGHT)
-    chunks.append(initial_chunk)
-
-    # Definir el chunk actual al primer chunk generado
-    current_chunk = initial_chunk
-
-    # Spawn de los chunks relativos al chunk actual
-    spawn_chunks(INITIAL_CHUNK_X, INITIAL_CHUNK_Y)
-
-
-    # Llamada para generar el anillo externo alrededor del chunk inicial
-    generar_anillo_externo(INITIAL_CHUNK_X, INITIAL_CHUNK_Y)
-
-    # Llamada para generar el anillo N+2 alrededor del chunk inicial
-    generar_anillo_n_2(INITIAL_CHUNK_X, INITIAL_CHUNK_Y)
-
-    # Iniciar el bucle principal
-    bucle_principal(player, current_chunk)
-
-
-
-
-
-
-
-
-
+        pygame.display.flip()        
 
 if __name__ == "__main__":
     main()
+
